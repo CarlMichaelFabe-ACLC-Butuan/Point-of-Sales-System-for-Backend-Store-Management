@@ -4,10 +4,7 @@ import abstractions.App;
 import database.data.EmployeeInfo;
 
 import javax.swing.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,20 +16,24 @@ public class LoginUI extends App {
     private JButton loginButton;
 
     public LoginUI(String title, LoginController loginController) {
-        this.user.addKeyListener(new KeyAdapter() {
+        this.mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("ESCAPE"), "closeApp");
+        this.mainPanel.getActionMap().put("closeApp", new AbstractAction() {
             @Override
-            public void keyPressed(KeyEvent e) {
-                super.keyPressed(e);
-                setEnterEscape(e, loginController);
+            public void actionPerformed(ActionEvent e) {
+                closeApp();
+            }
+        });
+        this.mainPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("ENTER"), "enter");
+        this.mainPanel.getActionMap().put("enter", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                loginButtonAction(loginController);
             }
         });
         this.password.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
                 super.keyPressed(e);
-                if (setEnterEscape(e, loginController)) {
-                    return;
-                }
                 if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE && ((e.getModifiersEx() & KeyEvent.CTRL_DOWN_MASK) != 0)) {
                     password.setText("");
                 }
@@ -62,17 +63,6 @@ public class LoginUI extends App {
         for (LoginSuccess listener : listeners) {
             listener.loginSuccess(employeeInfo);
         }
-    }
-
-    private boolean setEnterEscape(KeyEvent e, LoginController loginController) {
-        if (e.getKeyChar() == KeyEvent.VK_ENTER) {
-            loginButtonAction(loginController);
-            return true;
-        } else if (e.getKeyChar() == KeyEvent.VK_ESCAPE) {
-            dispose();
-            return true;
-        }
-        return false;
     }
 
     private void loginButtonAction(LoginController loginController) {

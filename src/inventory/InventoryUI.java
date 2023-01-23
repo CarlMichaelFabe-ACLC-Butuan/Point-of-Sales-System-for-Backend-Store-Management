@@ -183,11 +183,9 @@ public class InventoryUI extends App {
                 highlightComponent(this.updateName);
                 return;
             }
-            int[] rows = this.currentSelection;
             updateInventory(new UpdateProduct[] {new UpdateProduct(this.selectedItem, name, null, null)});
-            reloadTable();
+            reloadTableKeepSelection();
             filterOnTab();
-            selectPreviousSelected(rows);
         });
         this.updatePriceButton.addActionListener(e -> {
             if (!selectedItemExists()) {
@@ -197,22 +195,18 @@ public class InventoryUI extends App {
             if (price == null) {
                 return;
             }
-            int[] rows = this.currentSelection;
             updateInventory(new UpdateProduct[] {new UpdateProduct(this.selectedItem, null, price, null)});
-            reloadTable();
+            reloadTableKeepSelection();
             filterOnTab();
-            selectPreviousSelected(rows);
         });
         this.updateStockButton.addActionListener(e -> {
             if (!selectedItemExists()) {
                 return;
             }
             int quantity = (int) this.updateStock.getValue();
-            int[] rows = this.currentSelection;
             updateInventory(new UpdateProduct[] {new UpdateProduct(this.selectedItem, null, null, quantity)});
-            reloadTable();
+            reloadTableKeepSelection();
             filterOnTab();
-            selectPreviousSelected(rows);
         });
 
         this.addStockButton.addActionListener(e -> updateStock(false));
@@ -349,12 +343,15 @@ public class InventoryUI extends App {
     private void setFilterAndReloadTable() {
         this.filterSearchField.setText("");
         this.filterSearchFieldCD.setText("");
-        reloadTable();
-    }
-
-    private void reloadTable() {
         this.inventory = getInventory();
         setUpTable();
+    }
+
+    private void reloadTableKeepSelection() {
+        int[] rows = this.currentSelection;
+        this.inventory = getInventory();
+        setUpTable();
+        selectPreviousSelected(rows);
     }
 
     private void updateStock(boolean negative) {
@@ -385,13 +382,11 @@ public class InventoryUI extends App {
         if (!showConfirmDialog(this.mainPanel, message.toString(), "Update Stock")) {
             return;
         }
-        int[] rows = this.currentSelection;
         UpdateProduct[] updateProducts = new UpdateProduct[updateProductsList.size()];
         updateProductsList.toArray(updateProducts);
         updateInventory(updateProducts);
-        reloadTable();
+        reloadTableKeepSelection();
         filterOnTab();
-        selectPreviousSelected(rows);
     }
 
     private void removeItems() {

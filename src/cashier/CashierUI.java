@@ -19,6 +19,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+class CustomerType {
+    static final String VIP = "VIP";
+    static final String REGULAR = "Regular";
+}
+
 public class CashierUI extends App {
     private final Comparator<Product> ascendingProductName = Comparator.comparing(o -> o.productName);
 
@@ -31,6 +36,8 @@ public class CashierUI extends App {
     private int taxInt = 0;
     private int totalInt = 0;
     private Integer cashInt = 0;
+    private int changeInt = 0;
+    private String customerType;
 
     // Main
     private JPanel mainPanel;
@@ -76,9 +83,11 @@ public class CashierUI extends App {
     private JLabel totalPriceLabel;
 
     // Customer Info
+    private JLabel customerTypeLabel;
     private JLabel customerIDLabel;
     private JLabel customerNameLabel;
     private JLabel customerPointsLabel;
+    private JButton removeCustomerButton;
     private JButton randomizeCustomerButton;
 
     // Cashier Info
@@ -96,8 +105,8 @@ public class CashierUI extends App {
         setDate();
         setUpTable();
         calculateSubTotal();
-        updateChange();
         updatePaymentMethod();
+        setCustomerRegular();
 
         availableStock.setOpaque(true);
         SpinnerNumberModel model = new SpinnerNumberModel(0, 0, 0, 1);
@@ -173,6 +182,32 @@ public class CashierUI extends App {
         this.itemsTable.getTableHeader().setReorderingAllowed(false);
         this.itemsTable.getColumnModel().getColumn(0).setMinWidth(0);
         this.itemsTable.getColumnModel().getColumn(0).setMaxWidth(0);
+    }
+
+    private void setCustomerVIP(Integer id) {
+        this.customerInfo = this.inventoryModel.getCustomer(id);
+        if (this.customerInfo == null) {
+            return;
+        }
+        this.customerType = CustomerType.VIP;
+
+        this.customerTypeLabel.setText(CustomerType.VIP);
+        this.customerIDLabel.setText(String.valueOf(this.customerInfo.customerID));
+        this.customerNameLabel.setText(this.customerInfo.customerName);
+        this.customerPointsLabel.setText(String.valueOf(this.customerInfo.points));
+    }
+
+    private void setCustomerRegular() {
+        this.customerInfo = null;
+        this.customerType = CustomerType.REGULAR;
+
+        this.customerTypeLabel.setText(CustomerType.REGULAR);
+        this.customerIDLabel.setText("");
+        this.customerNameLabel.setText("");
+        this.customerPointsLabel.setText("");
+        this.paymentMethod.setSelectedIndex(0);
+        updatePaymentMethod();
+        updateChange();
     }
 
     private void setUpListeners() {
@@ -326,22 +361,12 @@ public class CashierUI extends App {
                 updateChange();
             }
         });
-
         this.payButton.addActionListener(e -> payTransaction());
 
-        this.randomizeCustomerButton.addActionListener(e -> {
-            this.customerInfo = this.inventoryModel.getCustomer(0);
-            if (this.customerInfo == null) {
-                return;
-            }
-
-            this.customerIDLabel.setText(String.valueOf(this.customerInfo.customerID));
-            this.customerNameLabel.setText(this.customerInfo.customerName);
-            this.customerPointsLabel.setText(String.valueOf(this.customerInfo.points));
-        });
+        this.removeCustomerButton.addActionListener(e -> setCustomerRegular());
+        this.randomizeCustomerButton.addActionListener(e -> setCustomerVIP(null));
 
         this.logoutButton.addActionListener(e -> closeApp());
-
         this.resetButton.addActionListener(e -> resetApp());
 
         this.addWindowListener(new WindowAdapter() {
@@ -457,10 +482,17 @@ public class CashierUI extends App {
             this.cashInput.setText(total);
             this.cashInput.setEditable(false);
         } else if (paymentMethod == 2) {
-            // TODO: create customer credit
-            System.out.println("To Be Implemented");
-            this.cashInput.setEditable(true);
+            this.cashInput.setEditable(false);
+            if (Objects.equals(this.customerType, CustomerType.REGULAR)) {
+                showErrorDialog(this.mainPanel, "Only for VIPs");
+                this.paymentMethod.setSelectedIndex(0);
+                updatePaymentMethod();
+                updateChange();
+                return;
+            }
+            this.cashInput.setText(String.valueOf(this.customerInfo.points));
         }
+        updateChange();
     }
 
     private Double parseDouble(String num) {
@@ -483,15 +515,20 @@ public class CashierUI extends App {
     private void updateChange() {
         getCashInput();
         if (this.cashInt == null) {
-            this.change.setText("0");
+            this.change.setText("Please enter number");
             return;
         }
         if (this.cashInt < this.totalInt) {
+            int paymentMethod = this.paymentMethod.getSelectedIndex();
+            if (paymentMethod == 2) {
+                this.change.setText("Not enough points!");
+                return;
+            }
             this.change.setText("Not enough cash!");
             return;
         }
-        int changeInt = this.cashInt - this.totalInt;
-        double change = changeInt / 100d;
+        this.changeInt = this.cashInt - this.totalInt;
+        double change = this.changeInt / 100d;
         this.change.setText(String.format("%.2f", change));
     }
 
@@ -514,7 +551,6 @@ public class CashierUI extends App {
             showErrorDialog(this.mainPanel, "No items in cart!");
             return;
         }
-
         Double subTotal = parseDouble(String.format("%.2f", this.subTotalInt / 100d));
         Double tax = parseDouble(String.format("%.2f", this.taxInt / 100d));
         Double total = parseDouble(String.format("%.2f", this.totalInt / 100d));
@@ -535,12 +571,15 @@ public class CashierUI extends App {
 
         this.inventoryModel.updateProducts(updateProducts);
 
+        int paymentMethodIndex = this.paymentMethod.getSelectedIndex();
+        if (paymentMethodIndex == 2) {
+            this.inventoryModel.updateCustomerPoints(this.customerInfo.customerID, this.changeInt / 100d);
+        }
         this.inventory = getInventory();
         setUpTable();
         updateSelectItem();
         updateManualSelectItem();
         calculateSubTotal();
-        updateChange();
         updatePaymentMethod();
 
         if (!this.transactionNoCheckBox.isSelected()) {
@@ -553,17 +592,19 @@ public class CashierUI extends App {
         String time = dateNow.format(timeFormatter);
         String date = dateNow.format(dateFormatter);
 
-        Integer customerID = null;
-        if (this.customerInfo != null) {
-            customerID = this.customerInfo.customerID;
-        }
         String paymentMethod =
                 Objects.requireNonNull(this.paymentMethod.getSelectedItem()).toString();
+
+        Integer customerID = null;
+        if (Objects.equals(this.customerType, CustomerType.VIP)) {
+            customerID = this.customerInfo.customerID;
+        }
 
         this.inventoryModel.addTransaction(
                 subTotal, tax, total, paymentMethod, time, date, this.employeeInfo.employeeID, customerID);
         this.inventoryModel.addItemsInTransaction(this.transactionNumber, itemInfoArray);
 
         setTransactionNumber();
+        setCustomerVIP(this.customerInfo.customerID);
     }
 }

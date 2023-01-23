@@ -16,14 +16,18 @@ public class InventoryModel {
     public CustomerInfo getCustomer(Integer id) {
         PreparedStatement sqlStatement;
         ResultSet result;
-        System.out.println("TODO: Placeholder input ID " + id + " for future use");
-
-        //        String sql = "SELECT * FROM customer WHERE id = ?";
-        String sql = "SELECT * FROM customer ORDER BY RANDOM() LIMIT 1";
+        String sql;
+        if (id == null) {
+            sql = "SELECT * FROM customer ORDER BY RANDOM() LIMIT 1";
+        } else {
+            sql = "SELECT * FROM customer WHERE id = ?";
+        }
 
         try {
             sqlStatement = this.connection.prepareStatement(sql);
-            //            sqlStatement.setInt(1, id);
+            if (id != null) {
+                sqlStatement.setInt(1, id);
+            }
 
             result = sqlStatement.executeQuery();
             if (result.next()) {
@@ -37,6 +41,23 @@ public class InventoryModel {
         } catch (SQLException ex) {
             ex.printStackTrace();
             return null;
+        }
+    }
+
+    public void updateCustomerPoints(Integer id, Double points) {
+        PreparedStatement sqlStatement;
+
+        String sql = "UPDATE customer SET points = ? WHERE id = ?";
+
+        try {
+            sqlStatement = this.connection.prepareStatement(sql);
+            sqlStatement.setDouble(1, points);
+            sqlStatement.setInt(2, id);
+
+            sqlStatement.executeUpdate();
+            sqlStatement.close();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         }
     }
 
