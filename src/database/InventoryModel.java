@@ -30,7 +30,6 @@ public class InventoryModel {
                 int customerID = result.getInt(1);
                 String customerName = result.getString(2);
                 double customerPoints = result.getDouble(4);
-                System.out.println(customerPoints);
                 sqlStatement.close();
                 return new CustomerInfo(customerID, customerName, customerPoints);
             }
@@ -165,7 +164,9 @@ public class InventoryModel {
             result = sqlStatement.executeQuery();
 
             if (result.next()) {
-                return result.getInt(1);
+                int transaction = result.getInt(1);
+                sqlStatement.close();
+                return transaction;
             }
             return 0;
         } catch (SQLException ex) {

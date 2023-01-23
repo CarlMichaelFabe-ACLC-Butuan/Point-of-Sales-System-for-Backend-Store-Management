@@ -183,7 +183,11 @@ public class InventoryUI extends App {
                 highlightComponent(this.updateName);
                 return;
             }
+            int[] rows = this.currentSelection;
             updateInventory(new UpdateProduct[] {new UpdateProduct(this.selectedItem, name, null, null)});
+            reloadTable();
+            filterOnTab();
+            selectPreviousSelected(rows);
         });
         this.updatePriceButton.addActionListener(e -> {
             if (!selectedItemExists()) {
@@ -193,14 +197,22 @@ public class InventoryUI extends App {
             if (price == null) {
                 return;
             }
-            System.out.println(price);
+            int[] rows = this.currentSelection;
+            updateInventory(new UpdateProduct[] {new UpdateProduct(this.selectedItem, null, price, null)});
+            reloadTable();
+            filterOnTab();
+            selectPreviousSelected(rows);
         });
         this.updateStockButton.addActionListener(e -> {
             if (!selectedItemExists()) {
                 return;
             }
             int quantity = (int) this.updateStock.getValue();
-            System.out.println(quantity);
+            int[] rows = this.currentSelection;
+            updateInventory(new UpdateProduct[] {new UpdateProduct(this.selectedItem, null, null, quantity)});
+            reloadTable();
+            filterOnTab();
+            selectPreviousSelected(rows);
         });
 
         this.addStockButton.addActionListener(e -> updateStock(false));
@@ -373,11 +385,13 @@ public class InventoryUI extends App {
         if (!showConfirmDialog(this.mainPanel, message.toString(), "Update Stock")) {
             return;
         }
+        int[] rows = this.currentSelection;
         UpdateProduct[] updateProducts = new UpdateProduct[updateProductsList.size()];
         updateProductsList.toArray(updateProducts);
         updateInventory(updateProducts);
         reloadTable();
         filterOnTab();
+        selectPreviousSelected(rows);
     }
 
     private void removeItems() {
@@ -419,8 +433,7 @@ public class InventoryUI extends App {
         }
     }
 
-    private void selectPreviousSelected() {
-        int[] rows = this.currentSelection;
+    private void selectPreviousSelected(int[] rows) {
         if (rows.length == 0) {
             return;
         }
