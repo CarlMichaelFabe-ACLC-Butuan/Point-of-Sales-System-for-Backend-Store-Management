@@ -58,4 +58,15 @@ public abstract class App extends JFrame {
         });
         t.start();
     }
+
+    public void showErrorDialog(Component parentComponent, String message) {
+        Toolkit.getDefaultToolkit().beep();
+        JOptionPane.showMessageDialog(parentComponent, message, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public boolean showConfirmDialog(Component parentComponent, String message, String title) {
+        int dialogResult = JOptionPane.showConfirmDialog(parentComponent, message, title, JOptionPane.YES_NO_OPTION);
+        return dialogResult == JOptionPane.YES_OPTION;
+    }
 }

@@ -17,6 +17,7 @@ public class Product {
         return new Object[] {this, this.productID, this.productName, this.productPrice, this.productStock};
     }
 
+    @Override
     public String toString() {
         return this.productName;
     }

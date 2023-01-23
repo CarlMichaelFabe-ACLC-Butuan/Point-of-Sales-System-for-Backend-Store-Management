@@ -1,32 +1,36 @@
 package cashier;
 
 import abstractions.App;
+import database.data.CustomerInfo;
 import database.data.EmployeeInfo;
 import database.data.Product;
+import database.data.UpdateProduct;
 
 import javax.swing.Timer;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
-import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.*;
 
 public class CashierUI extends App {
+    private final Comparator<Product> ascendingProductName = Comparator.comparing(o -> o.productName);
+
     // Data
-    private final Product[] inventory;
-    Comparator<Product> ascendingProductName = Comparator.comparing(o -> o.productName);
+    private final EmployeeInfo employeeInfo;
+    private CustomerInfo customerInfo = null;
+    private Product[] inventory;
+    private int transactionNumber;
     private int subTotalInt = 0;
+    private int taxInt = 0;
     private int totalInt = 0;
     private Integer cashInt = 0;
-    private int changeInt = 0;
 
     // Main
     private JPanel mainPanel;
@@ -34,7 +38,7 @@ public class CashierUI extends App {
 
     // Top Bar
     private JCheckBox transactionNoCheckBox;
-    private JLabel transactionNumber;
+    private JLabel transactionNumberLabel;
     private JLabel date;
 
     // Item Selection
@@ -55,7 +59,7 @@ public class CashierUI extends App {
 
     // Total
     private JLabel subTotalPrice;
-    private JLabel tax;
+    private JLabel taxLabel;
     private JLabel totalPrice;
 
     // Payment
@@ -71,6 +75,12 @@ public class CashierUI extends App {
     private JLabel quantityLabel;
     private JLabel totalPriceLabel;
 
+    // Customer Info
+    private JLabel customerIDLabel;
+    private JLabel customerNameLabel;
+    private JLabel customerPointsLabel;
+    private JButton randomizeCustomerButton;
+
     // Cashier Info
     private JLabel cashierName;
     private JLabel cashierID;
@@ -82,8 +92,12 @@ public class CashierUI extends App {
         this.cashierName.setText(employeeInfo.employeeName);
         this.inventory = getInventory();
 
+        setTransactionNumber();
         setDate();
         setUpTable();
+        calculateSubTotal();
+        updateChange();
+        updatePaymentMethod();
 
         availableStock.setOpaque(true);
         SpinnerNumberModel model = new SpinnerNumberModel(0, 0, 0, 1);
@@ -108,6 +122,7 @@ public class CashierUI extends App {
         setLocationRelativeTo(null);
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         setVisible(true);
+        this.selectItem.requestFocus();
     }
 
     public Product[] getInventory() {
@@ -127,6 +142,22 @@ public class CashierUI extends App {
         }
     }
 
+    private void setTransactionNumber() {
+        this.transactionNumber = inventoryModel.getTransaction() + 1;
+        System.out.println(transactionNumber);
+        this.transactionNumberLabel.setText(String.valueOf(this.transactionNumber));
+    }
+
+    private void setDate() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a MMM dd, yyyy");
+        Timer timer = new Timer(1000, e -> {
+            LocalDateTime dateNow = LocalDateTime.now();
+            this.date.setText(dateNow.format(formatter));
+        });
+        timer.setInitialDelay(0);
+        timer.start();
+    }
+
     private void setUpTable() {
         DefaultTableModel tableModel =
                 new DefaultTableModel(
@@ -142,16 +173,6 @@ public class CashierUI extends App {
         this.itemsTable.getTableHeader().setReorderingAllowed(false);
         this.itemsTable.getColumnModel().getColumn(0).setMinWidth(0);
         this.itemsTable.getColumnModel().getColumn(0).setMaxWidth(0);
-    }
-
-    private void setDate() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a MMM dd, yyyy");
-        Timer timer = new Timer(1000, e -> {
-            LocalDateTime dateNow = LocalDateTime.now();
-            this.date.setText(dateNow.format(formatter));
-        });
-        timer.setInitialDelay(0);
-        timer.start();
     }
 
     private void setUpListeners() {
@@ -187,23 +208,100 @@ public class CashierUI extends App {
 
         this.manualItemQuantity.addChangeListener(e -> updateManualSelectItem());
 
-        this.addToCartButton.addActionListener(e -> addToCart());
+        this.addToCartButton.addActionListener(e -> {
+            int currentTab = this.selectItemTabbedPane.getSelectedIndex();
 
-        this.removeFromCartButton.addActionListener(e -> removeFromCart());
+            Product product;
+            JSpinner spinner;
+            JLabel stock;
+            if (currentTab == 0) {
+                product = (Product) this.selectItem.getSelectedItem();
+                spinner = this.itemQuantity;
+                stock = this.availableStock;
+            } else {
+                String idString = this.manualItemID.getText().trim();
+                if (idString.trim().isEmpty()) {
+                    highlightComponent(manualItemID);
+                    return;
+                }
+                int id;
+                try {
+                    id = Integer.parseInt(idString);
+                } catch (NumberFormatException ex) {
+                    id = 0;
+                }
+                product = findProduct(id);
+                spinner = this.manualItemQuantity;
+                stock = this.manualAvailableStock;
+            }
+
+            if (product == null) {
+                showErrorDialog(this.mainPanel, "Item Not Found");
+                return;
+            }
+            if (Integer.parseInt(stock.getText()) == 0) {
+                showErrorDialog(this.mainPanel, "Out of Stock!");
+                return;
+            }
+            Integer quantity = (Integer) spinner.getValue();
+            if (quantity < 1) {
+                highlightComponent(spinner.getEditor().getComponent(0));
+                return;
+            }
+            ItemInfo itemInfo = existsInCart(product, quantity);
+            Object[] productRow = itemInfo.getArray();
+
+            DefaultTableModel tableModel = (DefaultTableModel) this.itemsTable.getModel();
+            tableModel.addRow(productRow);
+
+            int lastRow = tableModel.getRowCount() - 1;
+            this.itemsTable.setRowSelectionInterval(lastRow, lastRow);
+
+            product.productStock -= quantity;
+            if (currentTab == 0) {
+                updateSelectItem();
+            } else {
+                updateManualSelectItem();
+            }
+            updateItemInfo(itemInfo);
+        });
+
+        this.removeFromCartButton.addActionListener(e -> {
+            DefaultTableModel tableModel = (DefaultTableModel) this.itemsTable.getModel();
+            int[] selectedRows = this.itemsTable.getSelectedRows();
+            if (selectedRows.length == 0) {
+                return;
+            }
+            List<Integer> rows =
+                    new ArrayList<>(Arrays.stream(selectedRows).boxed().toList());
+            Collections.reverse(rows);
+            for (int row : rows) {
+                Product product = (Product) tableModel.getValueAt(row, 2);
+                int quantity = (int) tableModel.getValueAt(row, 4);
+                product.productStock += quantity;
+                tableModel.removeRow(row);
+            }
+            updateSelectItem();
+            updateManualSelectItem();
+
+            if (rows.get(rows.size() - 1) == 0) {
+                return;
+            }
+            int lastRow = tableModel.getRowCount() - 1;
+            this.itemsTable.setRowSelectionInterval(lastRow, lastRow);
+        });
 
         this.itemsTable.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
                 super.focusGained(e);
-                ItemInfo itemInfo = (ItemInfo) itemsTable.getValueAt(itemsTable.getSelectedRow(), 0);
-                updateItemInfo(itemInfo);
+                updateItemInfoFromTable();
             }
         });
 
         this.itemsTable.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) {
-                ItemInfo itemInfo = (ItemInfo) this.itemsTable.getValueAt(this.itemsTable.getSelectedRow(), 0);
-                updateItemInfo(itemInfo);
+                updateItemInfoFromTable();
             } else {
                 calculateSubTotal();
                 updateChange();
@@ -230,6 +328,17 @@ public class CashierUI extends App {
         });
 
         this.payButton.addActionListener(e -> payTransaction());
+
+        this.randomizeCustomerButton.addActionListener(e -> {
+            this.customerInfo = this.inventoryModel.getCustomer(0);
+            if (this.customerInfo == null) {
+                return;
+            }
+
+            this.customerIDLabel.setText(String.valueOf(this.customerInfo.customerID));
+            this.customerNameLabel.setText(this.customerInfo.customerName);
+            this.customerPointsLabel.setText(String.valueOf(this.customerInfo.points));
+        });
 
         this.logoutButton.addActionListener(e -> closeApp());
 
@@ -263,7 +372,7 @@ public class CashierUI extends App {
     }
 
     private void updateManualSelectItem() {
-        String idString = this.manualItemID.getText();
+        String idString = this.manualItemID.getText().trim();
         int id;
         try {
             id = Integer.parseInt(idString);
@@ -285,6 +394,14 @@ public class CashierUI extends App {
         this.totalPriceLabel.setText(String.valueOf(itemInfo.actualTotalPrice()));
     }
 
+    private void updateItemInfoFromTable() {
+        if (this.itemsTable.getRowCount() == 0) {
+            return;
+        }
+        ItemInfo itemInfo = (ItemInfo) this.itemsTable.getValueAt(this.itemsTable.getSelectedRow(), 0);
+        updateItemInfo(itemInfo);
+    }
+
     private ItemInfo existsInCart(Product product, Integer quantity) {
         DefaultTableModel tableModel = (DefaultTableModel) this.itemsTable.getModel();
 
@@ -302,88 +419,6 @@ public class CashierUI extends App {
         return getItemInfo(product, quantity + previousQuantity);
     }
 
-    private void addToCart() {
-        int currentTab = this.selectItemTabbedPane.getSelectedIndex();
-
-        Product product;
-        JSpinner spinner;
-        JLabel stock;
-        if (currentTab == 0) {
-            product = (Product) this.selectItem.getSelectedItem();
-            spinner = this.itemQuantity;
-            stock = this.availableStock;
-        } else {
-            String idString = this.manualItemID.getText();
-            if (idString.isEmpty()) {
-                highlightComponent(manualItemID);
-                return;
-            }
-            int id;
-            try {
-                id = Integer.parseInt(idString);
-            } catch (NumberFormatException e) {
-                id = 0;
-            }
-            product = findProduct(id);
-            spinner = this.manualItemQuantity;
-            stock = this.manualAvailableStock;
-        }
-
-        if (product == null) {
-            showErrorDialog("Item Not Found");
-            return;
-        }
-        if (Integer.parseInt(stock.getText()) == 0) {
-            showErrorDialog("Out of Stock!");
-            return;
-        }
-        Integer quantity = (Integer) spinner.getValue();
-        if (quantity < 1) {
-            highlightComponent(spinner.getEditor().getComponent(0));
-            return;
-        }
-        ItemInfo itemInfo = existsInCart(product, quantity);
-        Object[] productRow = itemInfo.getArray();
-
-        DefaultTableModel tableModel = (DefaultTableModel) this.itemsTable.getModel();
-        tableModel.addRow(productRow);
-
-        int lastRow = tableModel.getRowCount() - 1;
-        this.itemsTable.setRowSelectionInterval(lastRow, lastRow);
-
-        product.productStock -= quantity;
-        if (currentTab == 0) {
-            updateSelectItem();
-        } else {
-            updateManualSelectItem();
-        }
-        updateItemInfo(itemInfo);
-    }
-
-    private void removeFromCart() {
-        DefaultTableModel tableModel = (DefaultTableModel) this.itemsTable.getModel();
-        int[] selectedRows = this.itemsTable.getSelectedRows();
-        if (selectedRows.length == 0) {
-            return;
-        }
-        List<Integer> rows = new ArrayList<>(Arrays.stream(selectedRows).boxed().toList());
-        Collections.reverse(rows);
-        for (int row : rows) {
-            Product product = (Product) tableModel.getValueAt(row, 2);
-            int quantity = (int) tableModel.getValueAt(row, 4);
-            product.productStock += quantity;
-            tableModel.removeRow(row);
-        }
-        updateSelectItem();
-        updateManualSelectItem();
-
-        if (rows.get(rows.size() - 1) == 0) {
-            return;
-        }
-        int lastRow = tableModel.getRowCount() - 1;
-        this.itemsTable.setRowSelectionInterval(lastRow, lastRow);
-    }
-
     private void calculateSubTotal() {
         DefaultTableModel tableModel = (DefaultTableModel) this.itemsTable.getModel();
 
@@ -398,10 +433,11 @@ public class CashierUI extends App {
         int total = sum + tax;
 
         this.subTotalInt = sum;
+        this.taxInt = tax;
         this.totalInt = total;
 
         this.subTotalPrice.setText(String.valueOf(String.format("%.2f", this.subTotalInt / 100d)));
-        this.tax.setText("(5%) " + (tax / 100d));
+        this.taxLabel.setText("(5%) " + (tax / 100d));
         this.totalPrice.setText(String.valueOf(String.format("%.2f", this.totalInt / 100d)));
     }
 
@@ -422,18 +458,26 @@ public class CashierUI extends App {
             this.cashInput.setEditable(false);
         } else if (paymentMethod == 2) {
             // TODO: create customer credit
-            System.out.println("TODO");
+            System.out.println("To Be Implemented");
             this.cashInput.setEditable(true);
         }
     }
 
-    private void getCashInput() {
+    private Double parseDouble(String num) {
         try {
-            double cash = Double.parseDouble(this.cashInput.getText());
-            this.cashInt = (int) (cash * 100);
+            return Double.parseDouble(num);
         } catch (NumberFormatException e) {
-            this.cashInt = null;
+            return null;
         }
+    }
+
+    private void getCashInput() {
+        Double cash = parseDouble(this.cashInput.getText());
+        if (cash == null) {
+            this.cashInt = null;
+            return;
+        }
+        this.cashInt = (int) (cash * 100);
     }
 
     private void updateChange() {
@@ -446,29 +490,80 @@ public class CashierUI extends App {
             this.change.setText("Not enough cash!");
             return;
         }
-        this.changeInt = this.cashInt - this.totalInt;
-        double change = this.changeInt / 100d;
+        int changeInt = this.cashInt - this.totalInt;
+        double change = changeInt / 100d;
         this.change.setText(String.format("%.2f", change));
     }
 
     private void payTransaction() {
+        if (this.cashInput.getText().trim().isEmpty()) {
+            highlightComponent(this.cashInput);
+            return;
+        }
         getCashInput();
         if (this.cashInt == null) {
-            showErrorDialog("Cash Input not a valid number!");
+            showErrorDialog(this.mainPanel, "Cash Input not a valid number!");
             return;
         }
         if (this.cashInt < this.totalInt) {
-            showErrorDialog("Not enough cash!");
+            showErrorDialog(this.mainPanel, "Not enough cash!");
             return;
         }
-        System.out.println(this.subTotalInt);
-        System.out.println(this.totalInt);
-        System.out.println(this.cashInt);
-        System.out.println(this.changeInt);
-    }
+        DefaultTableModel tableModel = (DefaultTableModel) this.itemsTable.getModel();
+        if (tableModel.getRowCount() == 0) {
+            showErrorDialog(this.mainPanel, "No items in cart!");
+            return;
+        }
 
-    private void showErrorDialog(String message) {
-        Toolkit.getDefaultToolkit().beep();
-        JOptionPane.showMessageDialog(this.mainPanel, message, "Error", JOptionPane.ERROR_MESSAGE);
+        Double subTotal = parseDouble(String.format("%.2f", this.subTotalInt / 100d));
+        Double tax = parseDouble(String.format("%.2f", this.taxInt / 100d));
+        Double total = parseDouble(String.format("%.2f", this.totalInt / 100d));
+
+        List<ItemInfo> itemInfoList = new ArrayList<>();
+        List<UpdateProduct> updateProductsList = new ArrayList<>();
+        for (int row = 0; row < tableModel.getRowCount(); row++) {
+            ItemInfo item = (ItemInfo) tableModel.getValueAt(row, 0);
+            itemInfoList.add(item);
+            updateProductsList.add(new UpdateProduct(item.product(), null, null, item.product().productStock));
+        }
+
+        ItemInfo[] itemInfoArray = new ItemInfo[itemInfoList.size()];
+        itemInfoList.toArray(itemInfoArray);
+
+        UpdateProduct[] updateProducts = new UpdateProduct[updateProductsList.size()];
+        updateProductsList.toArray(updateProducts);
+
+        this.inventoryModel.updateProducts(updateProducts);
+
+        this.inventory = getInventory();
+        setUpTable();
+        updateSelectItem();
+        updateManualSelectItem();
+        calculateSubTotal();
+        updateChange();
+        updatePaymentMethod();
+
+        if (!this.transactionNoCheckBox.isSelected()) {
+            return;
+        }
+
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+        LocalDateTime dateNow = LocalDateTime.now();
+        String time = dateNow.format(timeFormatter);
+        String date = dateNow.format(dateFormatter);
+
+        Integer customerID = null;
+        if (this.customerInfo != null) {
+            customerID = this.customerInfo.customerID;
+        }
+        String paymentMethod =
+                Objects.requireNonNull(this.paymentMethod.getSelectedItem()).toString();
+
+        this.inventoryModel.addTransaction(
+                subTotal, tax, total, paymentMethod, time, date, this.employeeInfo.employeeID, customerID);
+        this.inventoryModel.addItemsInTransaction(this.transactionNumber, itemInfoArray);
+
+        setTransactionNumber();
     }
 }

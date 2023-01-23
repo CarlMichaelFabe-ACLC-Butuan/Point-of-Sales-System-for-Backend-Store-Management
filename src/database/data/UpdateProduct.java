@@ -14,4 +14,12 @@ public class UpdateProduct {
         this.price = price;
         this.stock = quantity;
     }
+
+    @Override
+    public String toString() {
+        return "UpdateProduct{ID="
+                + this.ID + ", name='"
+                + this.product.productName + '\'' + ", newStock="
+                + this.product.productStock + '}';
+    }
 }

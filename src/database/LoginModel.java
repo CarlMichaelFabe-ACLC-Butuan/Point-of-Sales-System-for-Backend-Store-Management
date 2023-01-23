@@ -7,13 +7,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-
 public class LoginModel {
     Connection connection = DBConnection.getConnection();
 
-    public boolean userExists(String username, String department) throws SQLException {
-        PreparedStatement sqlStatement = null;
-        ResultSet result = null;
+    public boolean userExists(String username, String department) {
+        PreparedStatement sqlStatement;
+        ResultSet result;
 
         String sql = "SELECT * FROM " + department.strip() + " WHERE ";
         sql += "username = ?";
@@ -23,20 +22,18 @@ public class LoginModel {
             sqlStatement.setString(1, username);
 
             result = sqlStatement.executeQuery();
-            return result.next();
-        } catch (SQLException ex) {
-            return false;
-        } finally {
-            assert sqlStatement != null;
-            assert result != null;
+            boolean out = result.next();
             sqlStatement.close();
-            result.close();
+            return out;
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            return false;
         }
     }
 
-    public EmployeeInfo login(String username, String password, String department) throws SQLException {
-        PreparedStatement sqlStatement = null;
-        ResultSet result = null;
+    public EmployeeInfo login(String username, String password, String department) {
+        PreparedStatement sqlStatement;
+        ResultSet result;
 
         String sql = "SELECT * FROM " + department.strip() + " WHERE ";
         sql += "username = ? and password = ?";
@@ -48,16 +45,15 @@ public class LoginModel {
 
             result = sqlStatement.executeQuery();
             if (result.next()) {
-                return new EmployeeInfo(result.getInt(1), result.getString(2));
+                int employeeID = result.getInt(1);
+                String employeeName = result.getString(2);
+                sqlStatement.close();
+                return new EmployeeInfo(employeeID, employeeName);
             }
             return null;
         } catch (SQLException ex) {
+            ex.printStackTrace();
             return null;
-        } finally {
-            assert sqlStatement != null;
-            assert result != null;
-            sqlStatement.close();
-            result.close();
         }
     }
 }

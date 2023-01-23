@@ -5,9 +5,6 @@ import inventory.InventoryUI;
 import login.LoginController;
 import login.LoginUI;
 
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-
 interface CreateUI {
     App createApp(EmployeeInfo employeeInfo);
 }
@@ -19,18 +16,15 @@ class OpenApp extends App {
         LoginController loginController = new LoginController(department);
         this.loginUI = new LoginUI(loginTitle, loginController);
         this.loginUI.addLoginListener(employeeInfo -> runApp(employeeInfo, createUI));
-        this.loginUI.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosed(WindowEvent e) {
-                super.windowClosed(e);
-                closeApp();
-            }
+        this.loginUI.addCloseListener(() -> {
+            this.loginUI.dispose();
+            closeApp();
         });
     }
 
     private void runApp(EmployeeInfo employeeInfo, CreateUI createUI) {
         App app = createUI.createApp(employeeInfo);
-        loginUI.setVisible(false);
+        this.loginUI.dispose();
 
         app.addCloseListener(() -> {
             app.dispose();

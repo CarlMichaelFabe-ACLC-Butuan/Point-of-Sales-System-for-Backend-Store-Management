@@ -11,7 +11,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
-import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.math.BigDecimal;
@@ -95,6 +94,7 @@ public class InventoryUI extends App {
         setLocationRelativeTo(null);
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setVisible(true);
+        this.filterSearchField.requestFocus();
     }
 
     public List<Object[]> getInventory() {
@@ -104,12 +104,6 @@ public class InventoryUI extends App {
             inventory.add(product.getArray());
         }
         return inventory;
-    }
-
-    private void addToInventory(String name, double price, int stock) {
-        int items = this.inventoryModel.addProduct(name, price, stock);
-        String message = String.format("Added %d %s to the Inventory Database", items, items == 1 ? "item" : "items");
-        JOptionPane.showMessageDialog(this.mainPanel, message);
     }
 
     private void removeFromInventory(Integer[] ids) {
@@ -130,7 +124,7 @@ public class InventoryUI extends App {
 
     private void setDate() {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm:ss a");
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MMMM dd, yyyy");
         Timer timer = new Timer(1000, e -> {
             LocalDateTime dateNow = LocalDateTime.now();
             this.timeLabel.setText(dateNow.format(timeFormatter));
@@ -184,8 +178,8 @@ public class InventoryUI extends App {
             if (!selectedItemExists()) {
                 return;
             }
-            String name = this.updateName.getText();
-            if (name.isEmpty()) {
+            String name = this.updateName.getText().trim();
+            if (name.trim().isEmpty()) {
                 highlightComponent(this.updateName);
                 return;
             }
@@ -229,8 +223,8 @@ public class InventoryUI extends App {
             }
         });
         this.addItemButton.addActionListener(e -> {
-            String name = this.addItemName.getText();
-            if (name.isEmpty()) {
+            String name = this.addItemName.getText().trim();
+            if (name.trim().isEmpty()) {
                 highlightComponent(this.addItemName);
                 return;
             }
@@ -309,6 +303,7 @@ public class InventoryUI extends App {
     }
 
     private void filterTable(JTextField textField) {
+        textField.requestFocus();
         String query = textField.getText();
         TableRowSorter<? extends TableModel> rowSorter =
                 (TableRowSorter<? extends TableModel>) this.databaseTable.getRowSorter();
@@ -375,9 +370,7 @@ public class InventoryUI extends App {
         }
         message.append("</body>/html>");
 
-        int dialogResult =
-                JOptionPane.showConfirmDialog(this.mainPanel, message, "Update Stock", JOptionPane.YES_NO_OPTION);
-        if (dialogResult != JOptionPane.YES_OPTION) {
+        if (!showConfirmDialog(this.mainPanel, message.toString(), "Update Stock")) {
             return;
         }
         UpdateProduct[] updateProducts = new UpdateProduct[updateProductsList.size()];
@@ -405,9 +398,7 @@ public class InventoryUI extends App {
         Integer[] ids = new Integer[idsList.size()];
         idsList.toArray(ids);
 
-        int dialogResult =
-                JOptionPane.showConfirmDialog(this.mainPanel, message, "Remove Items", JOptionPane.YES_NO_OPTION);
-        if (dialogResult != JOptionPane.YES_OPTION) {
+        if (!showConfirmDialog(this.mainPanel, message.toString(), ids.length == 1 ? "Remove Item" : "Remove Items")) {
             return;
         }
         removeFromInventory(ids);
@@ -416,14 +407,14 @@ public class InventoryUI extends App {
     private Double getValidPrice(JTextField textField) {
         try {
             String price = textField.getText();
-            if (price.isEmpty()) {
+            if (price.trim().isEmpty()) {
                 highlightComponent(textField);
                 return null;
             }
             return round(Double.parseDouble(price));
         } catch (NumberFormatException ex) {
             highlightComponent(textField);
-            showErrorDialog("Price not a valid number!");
+            showErrorDialog(this.mainPanel, "Price not a valid number!");
             return null;
         }
     }
@@ -442,15 +433,10 @@ public class InventoryUI extends App {
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean selectedItemExists() {
         if (this.selectedItem == null) {
-            showErrorDialog("No Selected Item");
+            showErrorDialog(this.mainPanel, "No Selected Item");
             return false;
         }
         return true;
-    }
-
-    private void showErrorDialog(String message) {
-        Toolkit.getDefaultToolkit().beep();
-        JOptionPane.showMessageDialog(this.mainPanel, message, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
     private double round(double value) {
