@@ -5,22 +5,22 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DBConnection {
-    private static final String USERNAME = "db-user";
-    private static final String PASSWORD = "db-pass";
-    private static final String SQCONN = "jdbc:sqlite:database\\pos.sqlite";
+    private static final String SQ_CONN = "jdbc:sqlite:database\\pos.sqlite";
 
-    public static Connection getConnection() throws SQLException {
+    public static Connection getConnection() {
         try {
             Class.forName("org.sqlite.JDBC");
-            return DriverManager.getConnection(SQCONN);
         } catch (ClassNotFoundException ex) {
             ex.printStackTrace();
             return null;
         }
+
+        try {
+            return DriverManager.getConnection(SQ_CONN);
+        } catch (SQLException ex) {
+            System.exit(1);
+        }
+        return null;
     }
 
-
-    public static void main(String[] args) {
-
-    }
 }
