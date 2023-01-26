@@ -18,9 +18,9 @@ public class DBConnection {
         try {
             return DriverManager.getConnection(SQ_CONN);
         } catch (SQLException ex) {
+            ex.printStackTrace();
             System.exit(1);
         }
         return null;
     }
-
 }
